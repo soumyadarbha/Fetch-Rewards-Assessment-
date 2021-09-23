@@ -1,0 +1,84 @@
+1. What are the top 5 brands by receipts scanned for most recent month?
+
+select * from 
+(select brandname,brandcode,count(distinct receipt_id) as count_receipt from
+itemlist i left join brands b 
+on i.brandcode=b.brandcode
+left join receipts r 
+on  b.receipt_id=r._id
+where Date_format(dateScanned1, "%Y%m") = (select Date_format(dateScanned1, "%Y%m") from receipts order by dateScanned1 desc limit 1)
+group by brandcode)
+order by count_receipt desc
+limit 5;
+
+2. How does the ranking of the top 5 brands by receipts scanned for the recent month compare to the ranking for the previous month?
+
+select  currentmonth.rank as Rank,currentmonth.brandname as Currentmonth_Brandname,currentmonth.brandcode as Currentmonth_Brandcode,currentmonth.count_receipt as Currentmonth_count_receipt,
+previousmonth.brandname as Previousmonth_Brandname,previousmonth.brandcode as Previousmonth_Brandcode,previousmonth.count_receipt as Previousmonth.count_receipt
+from 
+(select *, rank() over (order by count_receipt) as receipt_rank from 
+(select brandname,brandcode,count(distinct receipt_id) as count_receipt from
+itemlist i left join brands b 
+on i.brandcode=b.brandcode
+left join receipts r 
+on  b.receipt_id=r._id
+where Date_format(dateScanned1, "%Y%m") = (select Date_format(dateScanned1, "%Y%m") from receipts order by dateScanned1 desc limit 1)
+group by brandcode) 
+where receipt_rank<6) currentmonth
+inner join
+(select *, rank() over (order by count_receipt) as receipt_rank from 
+(select brandname,brandcode,count(distinct receipt_id) as count_receipt from
+itemlist i left join brands b 
+on i.brandcode=b.brandcode
+left join receipts r 
+on  b.receipt_id=r._id
+where Date_format(dateScanned1, "%Y%m") = (select Date_format(Date_sub(datescanned, interval 1 month),"%Y%m") from receipts order by dateScanned1 desc limit 1) 
+group by brandcode) 
+where receipt_rank<6) previousmonth
+using receipt_rank;
+
+3. When considering average spend from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
+
+select Finished.rewardsReceiptStatus,Finished.finished_avg,Rejected.rewardsReceiptStatus, Rejected.rejected_avg
+if(Finished.finished_avg>rejected.rejected_avg,"Finished Average is greater","Rejected Average is greater") as average_spend_decision
+from
+(select avg(price) AS finished_avg,rewardsReceiptStatus from receipts
+where rewardsReceiptStatus="FINISHED") as Finished
+inner join
+(select avg(price) as rejected_avg,rewardsReceiptStatus from receipts 
+where rewardsReceiptStatus="REJECTED") as Rejected;
+
+4. When considering total number of items purchased from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
+
+select Finished.rewardsReceiptStatus,Finished.finished_total,Rejected.rewardsReceiptStatus,Rejected.rejected_total
+if(Finished.finished_total>Rejected.rejected_total,"Finished total no of items is greater","Rejected total no of items is greater") as totalitems_decision
+from
+(select sum(purchasedItemCount) AS finished_total,rewardsReceiptStatus from receipts
+where rewardsReceiptStatus="FINISHED") as Finished
+inner join
+(select sum(purchasedItemCount) as rejected_total,rewardsReceiptStatus from receipts 
+where rewardsReceiptStatus="REJECTED") as Rejected;
+
+
+5. Which brand has the most spend among users who were created within the past 6 months?
+
+select * from
+(select sum(r.totalSpent) as most_spent, i.brandcode from
+itemlist i inner join  receipts r on i.receipt_id=r._id 
+where r.userId in (select _id from Users where Date_format(createdDate,"%Y%m")>(select Date_format(Date_sub(createdDate, interval 6 month),"%Y%m") from Users order by createdDate desc limit 1))
+group by i.brandcode)
+order by most_spent desc
+limit 1;
+
+6. Which brand has the most transactions among users who were created within the past 6 months?
+
+select * from
+(select count(distinct r._id) as most_transaction, i.brandcode from
+itemlist i inner join  receipts r on i.receipt_id=r._id 
+where r.userId in (select _id from Users where Date_format(createdDate,"%Y%m")>(select Date_format(Date_sub(createdDate, interval 6 month),"%Y%m") from Users order by createdDate desc limit 1))
+group by i.brandcode)
+order by most_transaction desc
+limit 1;
+
+
+
